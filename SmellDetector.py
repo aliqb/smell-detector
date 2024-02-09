@@ -23,7 +23,12 @@ class SmellDetector:
 
     def read_data(self):
         data = pd.read_csv(f'datasets/{self.dataset_name}.csv')
-        X = data.drop(['IDType', 'project', 'package', 'complextype', 'is_smell'],
+        none_data_cols = ['project', 'package', 'complextype', 'is_smell']
+        if 'IDType' in data.columns:
+            none_data_cols.append('IDType')
+        if 'IDMethod' in data.columns:
+            none_data_cols.append('IDMethod')
+        X = data.drop(none_data_cols,
                       axis=1)  # Features (remove the target column)
         y = data['is_smell']  # Target variable
         X.replace('?', -1, inplace=True)

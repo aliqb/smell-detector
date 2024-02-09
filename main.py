@@ -108,7 +108,7 @@ if __name__ == '__main__':
         dataset_name = datasets[selected_dataset - 1]
         print(f"dataset:{dataset_name}")
         classifiers = [(DecisionTreeClassifier(), {'criterion': ['log_loss', 'gini'],
-                                                   'max_depth': list(range(1, 101))}),
+                                                   'max_depth': list(range(1, 101))+[None]}),
                        (RandomForestClassifier(),
                         {'criterion': ['log_loss', 'gini'], 'max_depth': list(range(1, 101, 10)),
                          'n_estimators': list(range(1, 200, 20))}),
