@@ -108,7 +108,7 @@ if __name__ == '__main__':
         dataset_name = datasets[selected_dataset - 1]
         print(f"dataset:{dataset_name}")
         classifiers = [(DecisionTreeClassifier(), {'criterion': ['log_loss', 'gini'],
-                                                   'max_depth': list(range(1, 101))+[None]}),
+                                                   'max_depth': list(range(1, 101)) + [None]}),
                        (RandomForestClassifier(),
                         {'criterion': ['log_loss', 'gini'], 'max_depth': list(range(1, 101, 10)),
                          'n_estimators': list(range(1, 200, 20))}),
@@ -126,8 +126,13 @@ if __name__ == '__main__':
         if 1 <= selected_classifier <= len(classifiers) + 1:
             (model, param_grid) = classifiers[selected_classifier - 1]
             scaling = str(model.__class__.__name__).startswith('SVC')
-            smell_detector = SmellDetector(dataset_name, model, param_grid=param_grid)
-            smell_detector.train_classifier(scaling)
+            smell_detector = SmellDetector(dataset_name, model, param_grid=param_grid, scaling=scaling)
+            commands = [smell_detector.train_classifier, smell_detector.test_classifier]
+            print("1: train a model")
+            print("2: test  model")
+            selected_command = int(input())
+            if 1 <= selected_command <= len(commands):
+                commands[selected_command-1]()
         else:
             print("invalid input")
     else:

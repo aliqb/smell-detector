@@ -13,13 +13,23 @@ from sklearn.model_selection import GridSearchCV
 
 
 class SmellDetector:
-    def __init__(self, dataset_name, model, param_grid=None):
+    def __init__(self, dataset_name, model, param_grid=None, scaling=False):
+        self.X_test = None
+        self.X_train = None
+        self.y_test = None
+        self.y_train = None
         self.X_train_balanced = None
         self.y_train_balanced = None
+        self.last_model = None
+        # self.trained_model = None
         self.model = model
         self.dataset_name = dataset_name
+        self.scaling = scaling
+        self.is_fitted = False
         self.X, self.y = self.read_data()
+        self.make_train_test_sets()
         self.param_grid = param_grid
+        self.set_last_model()
 
     def read_data(self):
         data = pd.read_csv(f'datasets/{self.dataset_name}.csv')
@@ -28,6 +38,8 @@ class SmellDetector:
             none_data_cols.append('IDType')
         if 'IDMethod' in data.columns:
             none_data_cols.append('IDMethod')
+        if 'method' in data.columns:
+            none_data_cols.append('method')
         X = data.drop(none_data_cols,
                       axis=1)  # Features (remove the target column)
         y = data['is_smell']  # Target variable
@@ -38,7 +50,31 @@ class SmellDetector:
 
             except Exception as e:
                 print(f"Error in column {col}: {e}")
+        nan_locs_X = np.where(X.isnull())
+        nan_indices_X = list(zip(nan_locs_X[0], nan_locs_X[1]))
+
+        # Print out the indices of NaN values in X
+        # for row, col in nan_indices_X:
+        #     print(f"NaN in X at row {row}, column {X.columns[col]}")
         return X, y
+
+    def make_train_test_sets(self):
+        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(self.X, self.y, test_size=0.2,
+                                                                                random_state=42)
+        if self.scaling:
+            scaler = MinMaxScaler()
+            self.X_train = scaler.fit_transform(self.X_train)
+            self.X_test = scaler.transform(self.X_test)
+        self.X_train_balanced, self.y_train_balanced = self.balance_dataset(self.X_train, self.y_train)
+
+    def set_last_model(self):
+        try:
+            self.model = load(f"./models/{self.dataset_name}-{self.model.__class__.__name__}")
+            self.is_fitted = True
+            print("trained model exist")
+        except Exception as e:
+            self.is_fitted = False
+            print("trained model does not exist")
 
     def balance_dataset(self, X, y):
         # Step 1: Initialize your classifier
@@ -73,7 +109,7 @@ class SmellDetector:
         # filtered_df now contains your filtered dataset
 
     def save_model(self):
-        dump(self.model, f'{self.dataset_name}-{self.model.__class__.__name__}')
+        dump(self.model, f'./models/{self.dataset_name}-{self.model.__class__.__name__}')
 
     def find_best_model(self):
         grid_search = GridSearchCV(estimator=self.model, param_grid=self.param_grid, cv=10, scoring='accuracy',
@@ -82,24 +118,18 @@ class SmellDetector:
         grid_search.fit(self.X_train_balanced, self.y_train_balanced)
         return grid_search.best_estimator_, grid_search.best_params_
 
-    def train_classifier(self, scaling=False):
-        X_train, X_test, y_train, y_test = train_test_split(self.X, self.y, test_size=0.2, random_state=42)
+    def train_classifier(self):
         scoring = ('accuracy', 'precision', 'recall', 'f1', 'roc_auc')
-        if scaling:
-            scaler = MinMaxScaler()
-            X_train = scaler.fit_transform(X_train)
-            X_test = scaler.transform(X_test)
-        self.X_train_balanced, self.y_train_balanced = self.balance_dataset(X_train, y_train)
-
-        if self.param_grid is not None:
-            best_model, best_params = self.find_best_model()
-            print(f"best params: {best_params}")
-        else:
-            best_model = self.model
-        cv_results = cross_validate(best_model, self.X_train_balanced, self.y_train_balanced, cv=10, scoring=scoring)
-        model_name = self.model.__class__.__name__
+        # if self.param_grid is not None:
+        self.model, best_params = self.find_best_model()
+        print(f"best params: {best_params}")
+        # else:
+        #     best_model = self.model
+        cv_results = cross_validate(self.model, self.X_train_balanced, self.y_train_balanced, cv=10, scoring=scoring)
+        self.is_fitted = True
+        self.save_model()
         print("##############################################")
-        print(f"Model: {model_name}")
+        print(f"Model: {self.model.__class__.__name__}")
         print("cross validation result")
         print(f"Accuracy: {cv_results['test_accuracy'].mean():.2f}")
         print(f"Precision: {cv_results['test_precision'].mean():.2f}")
@@ -108,14 +138,22 @@ class SmellDetector:
         print(f"roc_auc: {cv_results['test_roc_auc'].mean():.2f}")
 
         # self.model.fit(self.X_train_balanced, self.y_train_balanced)
+        self.test_classifier()
+
+    def test_classifier(self):
         print("-------------------------------------")
         print("test result")
-        y_pred = best_model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
-        roc_auc = roc_auc_score(y_test, y_pred)
+        # self.set_last_model()
+        if not self.is_fitted:
+            print("there is no trained model, training start:")
+            self.train_classifier()
+            return
+        y_pred = self.model.predict(self.X_test)
+        accuracy = accuracy_score(self.y_test, y_pred)
+        precision = precision_score(self.y_test, y_pred)
+        recall = recall_score(self.y_test, y_pred)
+        f1 = f1_score(self.y_test, y_pred)
+        roc_auc = roc_auc_score(self.y_test, y_pred)
 
         print(f'Accuracy: {accuracy:.2f}')
         print(f'precision: {precision:.2f}')
